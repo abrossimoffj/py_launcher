@@ -11,6 +11,8 @@ import json
 #from fcntl import fcntl, F_GETFL, F_SETFL
 #from time import sleep
 import sys
+import ast, inspect
+import socket
 #Besoin de gerer la communication entre les programmes
 #Besoin de terminer les processus correctement pour eviter le process zombie en cas de terminaison normale
 
@@ -50,6 +52,48 @@ class NonBlockingStreamReader:
             return None
 
 class UnexpectedEndOfStream(Exception): pass
+
+
+
+class NonBlockingTCPServer:
+
+	def __init__(self):
+
+		self.q = Queue()
+		self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		self.server_address = ('localhost', 10000)
+		self.sock.bind(self.server_address)
+		self.sock.listen(1)
+
+		def stack_info(queue):
+			while True:
+				connection, client_address = self.sock.accept()
+				try :
+					data = connection.recv(16)
+					if data:
+						connection.sendall(data.encode())
+						if data:
+							queue.put(data)
+						else:
+							raise UnexpectedEndOfTCPServer
+						output = self.readline(0.1)
+						if not output:
+							print ('[No more data]')
+						#break
+					print (output.rstrip().decode())
+				except :
+					pass
+		self.thread_stack = Thread(target = stack_info,args = (self.q,))
+		self.thread_stack.daemon = True
+		self.thread_stack.start()
+
+	def readline(self, timeout = None):
+		try:
+			return self.q.get(block = timeout is not None,timeout = timeout)
+		except Empty:
+			return None
+
+class UnexpectedEndOfTCPServer(Exception): pass
 
 def json_parser(pathname):
   ## On récupere la key du JSON ( le nom du fichier python) et le nested dictionnary qui gère les arguments du programme (peut être vide)
@@ -167,19 +211,88 @@ def callback_update_current_val(frame,list_label,list_champ):
 def run_callback(frame):
   ##Callback qui lance le fichier python avec un pipe en écoute pour récuperer stdout
   ##Le trick ici est de devoir threader ce processus d'écoute pour éviter de bloquer le code (cf la classe NonBlockingStreamReader )
-  idx=get_index(info_array,frame)
-  args_list = convert_dict_to_args(info_array[idx]["file_params"])
+	idx=get_index(info_array,frame)
+	args_list = convert_dict_to_args(info_array[idx]["file_params"])
 
 
-  proc = subprocess.Popen(['python', info_array[idx]["pathname"],*args_list],
+	proc = subprocess.Popen(['python', info_array[idx]["pathname"],*args_list],
+	                  shell=False,
+	                  stdin=subprocess.PIPE,
+	                 stdout=subprocess.PIPE,
+	                 start_new_session = True # pour lancer un processus fils detaché de son parent : ici interface.py
+	                 )
+	info_array[idx]["pid"] = proc.pid
+  #print(proc.pid)
+	thread_read_stream = NonBlockingStreamReader(proc.stdout)
+
+def run_debug_callback(frame):
+	idx=get_index(info_array,frame)
+	args_list = convert_dict_to_args(info_array[idx]["file_params"])
+	list_functions = find_function_names_with_decorator(info_array[idx]["pathname"],"debug")
+	list_args,list_variables,list_returns = find_variable_names_of_decorated_functions(info_array[idx]["pathname"],list_functions[1])
+	print(list_functions,list_args,list_variables,list_returns)
+	#thread_read_variable = NonBlockingTCPServer()
+	proc = subprocess.Popen(['python', info_array[idx]["pathname"],*args_list],
                       shell=False,
                       stdin=subprocess.PIPE,
                      stdout=subprocess.PIPE,
                      start_new_session = True # pour lancer un processus fils detaché de son parent : ici interface.py
                      )
-  info_array[idx]["pid"] = proc.pid
-  #print(proc.pid)
-  thread_read_stream = NonBlockingStreamReader(proc.stdout)
+	info_array[idx]["pid"] = proc.pid
+  	#print(proc.pid)
+	thread_read_stream = NonBlockingStreamReader(proc.stdout)
+
+
+def find_variable_names_of_decorated_functions(file_pathname,function_name):
+	#permet de trouver les variables des fonctions qui possèdent un decorateur specifique (@debug dans le cas du debugger)
+	file = open(file_pathname).read()
+
+	list_variables = []
+	list_args = []
+	list_returns = []
+	root = ast.parse(file)
+
+	for node in ast.walk(root):
+		if isinstance(node, ast.FunctionDef):
+			if node.name == function_name:
+				for inner_node in ast.walk(node):
+					if isinstance(inner_node, ast.Name) and isinstance(inner_node.ctx, ast.Store):
+						list_variables.append(inner_node.id)
+				##arguments
+				#print([a.arg for a in node.args.args])
+				for a in node.args.args:
+					list_args.append(a.arg)
+				##returns 
+				for b in node.body:
+					if isinstance(b, ast.Return):
+							if isinstance(b.value, ast.Name):
+								#print(b.value.id)
+								list_returns.append(b.value.id)
+	return list_args,list_variables,list_returns
+
+def find_function_names_with_decorator(file_pathname,decorator):
+	#permet de trouver les noms des fonctions qui possèdent un decorateur specifique (@debug dans le cas du debugger)
+	file = open(file_pathname).read()
+	target = ast.parse(file)
+	#res = {}
+	list_names = []
+	def visit_FunctionDef(node):
+		#res[node.name] = [ast.dump(e) for e in node.decorator_list]
+		for e in node.decorator_list:
+			if decorator in ast.dump(e):
+				list_names.append(node.name)
+
+	V = ast.NodeVisitor()
+	V.visit_FunctionDef = visit_FunctionDef
+	V.visit(target)
+	return list_names
+
+def clean_printing(func):
+	print("-----------------------------------------")
+	print(f"Calling {func.__name__}({func.get_signature})")
+	print(f"Intern variables {func.locals!r}")
+	print(f"{func.__name__!r} returned {func.get_output!r}")
+	print("-----------------------------------------")
 
 def get_name_from_path(path):
   return Path(path).name
@@ -192,6 +305,7 @@ def get_index(l,value):
 
 def print_file():
   print(info_array)
+  print(sys.getsizeof(f"Intern variables {info_array!r}"))
 
 def open_by_argument():
 	pathname_json_file = Path.cwd()
@@ -221,6 +335,12 @@ def open_and_create_from_json(pathname_json_file):
                      fg="red",
                      command= lambda : run_callback(frame))
     run_button.pack(side=LEFT)
+
+    run_debug_button = Button(frame, 
+                     text="Run_debug", 
+                     fg="red",
+                     command= lambda : run_debug_callback(frame))
+    run_debug_button.pack(side=LEFT)
 
     label_name= Label(frame,text = filename,width = 50, height = 4, fg = "blue") 
     label_name.pack(side=LEFT)
@@ -279,8 +399,5 @@ if len(sys.argv) == 2:
 		open_and_create_from_json(pathname_json_file)
 	else : 
 		print("invalid format must be python interface XXXX.json")   
-#while (True):
-#  window.update_idletasks()
-#  window.update()
-  #print("hello")   
+
 window.mainloop() 
