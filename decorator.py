@@ -3,8 +3,20 @@
 
 import sys
 import functools
+import os
+import json
+import inspect
 
+print = functools.partial(print,flush=True)
 ##On se sert de sys.setprofile pour définir une fonction de profilage du système : l'evenement "return" capture le fait que la méthode est sur le point de se terminer et la fonction de tracage est ainsi appellée
+class HiddenPrints:
+	def __enter__(self):
+		self._original_stdout = sys.stdout
+		sys.stdout = open(os.devnull, 'w')
+
+	def __exit__(self, exc_type, exc_val, exc_tb):
+		sys.stdout.close()
+		sys.stdout = self._original_stdout
 
 class debug(object):
 	def __init__(self, func):
@@ -17,16 +29,23 @@ class debug(object):
 	def __call__(self, *args, **kwargs): ##Defining a custom __call__() method in the meta-class allows the class's instance to be called as a function, not always modifying the instance itself.
 		def tracer(frame, event, arg):
 			if event=='return':
-				self._locals = frame.f_locals.copy()
+				if frame.f_code.co_name == self.__name__ : ## For avoiding to get local variables of other frames in stack 
+					self._locals = frame.f_locals.copy()
+					# print("------------------------------")
+					# print(event,frame.f_code.co_name, frame.f_lineno)
+					# print(frame.f_locals)
+					# print("------------------------------")
 
         # tracer is activated on next call, return or exception, here we activate it on return signal
+		args_repr = [repr(a) for a in args]                      
+		kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]  
+		self.signature = ", ".join(args_repr + kwargs_repr)
 		sys.setprofile(tracer)
 		try:
 		# trace the function call
-			args_repr = [repr(a) for a in args]                      
-			kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]  
-			self.signature = ", ".join(args_repr + kwargs_repr)           
-			self.res = self.func(*args, **kwargs)
+			with HiddenPrints():         
+				self.res = self.func(*args, **kwargs)
+			self.clean_printing() 
 		finally:
 		# disable tracer and replace with old one
 			sys.setprofile(None)
@@ -46,27 +65,12 @@ class debug(object):
 	def get_output(self):
 		return self.res
 
-@debug
-def func():
-    local1 = 1
-    local2 = 2
-    return '42'
-
-@debug
-def func2():
-	pif = "paf"
-	pouf = "7777"
+	def clean_printing(self):
+		print("-----------------------------------------")
+		print(f"Calling {self.__name__}({self.signature})")
+		print(self._locals)
+		#print("Intern variables ",json.dumps(self._locals))
+		print(f"{self.__name__!r} returned {self.res!r}")
+		print("-----------------------------------------")
 
 
-
-def clean_printing(func):
-	print("-----------------------------------------")
-	print(f"Calling {func.__name__}({func.get_signature})")
-	print(f"Intern variables {func.locals!r}")
-	print(f"{func.__name__!r} returned {func.get_output!r}")
-	print("-----------------------------------------")
-
-a = func()
-func2()
-clean_printing(func)
-clean_printing(func2)
