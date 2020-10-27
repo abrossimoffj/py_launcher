@@ -4,7 +4,7 @@ from pathlib import Path
 import os
 import psutil
 import subprocess
-from threading  import Thread
+from threading  import Thread, Event
 from queue import Queue, Empty
 import json
 #from os import O_NONBLOCK, read
@@ -13,6 +13,8 @@ import json
 import sys
 import ast, inspect
 import socket
+import asyncio
+import websockets
 #Besoin de gerer la communication entre les programmes
 #Besoin de terminer les processus correctement pour eviter le process zombie en cas de terminaison normale
 
@@ -55,45 +57,56 @@ class UnexpectedEndOfStream(Exception): pass
 
 
 
-class NonBlockingTCPServer:
+class WsServer(object):
+  def __init__(self, host='0.0.0.0', port=6171):
+    self.host, self.port = host, port
+    self.running = Event()
+    self.serve = None
+    self.loop = None
+    self.msg = "init"
+    #self.stop_event = Event()
+    #self.stop = asyncio.get_event_loop().run_in_executor(None, self.stop_event.wait)
 
-	def __init__(self):
+  async def sync(self, websocket, path):
+    """Sync loop that exchange modules state with the client."""
+    self.running.set()
 
-		self.q = Queue()
-		self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		self.server_address = ('localhost', 10000)
-		self.sock.bind(self.server_address)
-		self.sock.listen(1)
+    while self.running.is_set():
+      if not websocket.open:
+        break
+      await websocket.send(self.msg.encode('UTF-8'))
+      resp = await websocket.recv()
+      print(resp)
 
-		def stack_info(queue):
-			while True:
-				connection, client_address = self.sock.accept()
-				try :
-					data = connection.recv(16)
-					if data:
-						connection.sendall(data.encode())
-						if data:
-							queue.put(data)
-						else:
-							raise UnexpectedEndOfTCPServer
-						output = self.readline(0.1)
-						if not output:
-							print ('[No more data]')
-						#break
-					print (output.rstrip().decode())
-				except :
-					pass
-		self.thread_stack = Thread(target = stack_info,args = (self.q,))
-		self.thread_stack.daemon = True
-		self.thread_stack.start()
+  # async def close(self):
+  #   self.serve.ws_server.close()
+  #   await self.serve.ws_server.wait_closed()
+  #   self.loop.stop()
+  #   while(self.loop.is_running()):
+  #       time.sleep(0.5)
+  #   self.loop.close()
+  #   self.loop=None
 
-	def readline(self, timeout = None):
-		try:
-			return self.q.get(block = timeout is not None,timeout = timeout)
-		except Empty:
-			return None
 
-class UnexpectedEndOfTCPServer(Exception): pass
+  def run_forever(self):
+    """Run the sync loop forever."""
+    self.loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(self.loop)
+    # async def echo_server(stop):
+    #   async with websockets.serve(self.sync, self.host, self.port):
+    #     await self.stop
+    self.serve = websockets.serve(self.sync, self.host, self.port)
+
+    #loop.run_until_complete(echo_server(stop))
+    self.loop.run_until_complete(self.serve)
+    self.loop.run_forever()
+
+  def run_in_background(self):
+    """Run the sync loop forever in background."""
+    self.t = Thread(target=self.run_forever)
+    self.t.daemon = True
+    self.t.start()
+
 
 def json_parser(pathname):
   ## On récupere la key du JSON ( le nom du fichier python) et le nested dictionnary qui gère les arguments du programme (peut être vide)
@@ -129,6 +142,10 @@ def donothing():
   filewin.title("test")
   button = Button(filewin, text="do nothing")
   button.pack()
+
+def test_envoie(frame,msg):
+  idx=get_index(info_array,frame)
+  info_array[idx]["ws_server"].msg = "hellooo from server"
 
 
 def formulaire_window_callback(frame,window,first_call):
@@ -231,7 +248,8 @@ def run_debug_callback(frame):
 	list_functions = find_function_names_with_decorator(info_array[idx]["pathname"],"debug")
 	list_args,list_variables,list_returns = find_variable_names_of_decorated_functions(info_array[idx]["pathname"],list_functions[1])
 	print(list_functions,list_args,list_variables,list_returns)
-	#thread_read_variable = NonBlockingTCPServer()
+	ws = WsServer()
+	ws.run_in_background()
 	proc = subprocess.Popen(['python', info_array[idx]["pathname"],*args_list],
                       shell=False,
                       stdin=subprocess.PIPE,
@@ -239,6 +257,7 @@ def run_debug_callback(frame):
                      start_new_session = True # pour lancer un processus fils detaché de son parent : ici interface.py
                      )
 	info_array[idx]["pid"] = proc.pid
+	info_array[idx]["ws_server"] = ws 
   	#print(proc.pid)
 	thread_read_stream = NonBlockingStreamReader(proc.stdout)
 
@@ -342,6 +361,13 @@ def open_and_create_from_json(pathname_json_file):
                      command= lambda : run_debug_callback(frame))
     run_debug_button.pack(side=LEFT)
 
+    test_envoie_button = Button(frame, 
+                     text="test_envoie", 
+                     fg="red",
+                     command= lambda : test_envoie(frame,"jtenvoi ça"))
+    test_envoie_button.pack(side=LEFT)
+
+
     label_name= Label(frame,text = filename,width = 50, height = 4, fg = "blue") 
     label_name.pack(side=LEFT)
 
@@ -368,7 +394,8 @@ def open_and_create_from_json(pathname_json_file):
               "pathname": str(pathname_python), ##pour eviter d'avoir un type PathLib qui n'est pas itérable et qui bloque le popen
               "json_pathname": pathname_json_file,
               "file_params" : file_params,
-              "pid": -2}
+              "pid": -2,
+              "ws_server" : None}
     # Change label contents 
     #label_file_explorer.configure(text="File Opened: "+filename) 
     info_array.append(info)

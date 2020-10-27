@@ -5,7 +5,10 @@ import sys
 import functools
 import os
 import json
-import inspect
+#import inspect
+import asyncio
+#import websockets
+import websocket
 
 print = functools.partial(print,flush=True)
 ##On se sert de sys.setprofile pour définir une fonction de profilage du système : l'evenement "return" capture le fait que la méthode est sur le point de se terminer et la fonction de tracage est ainsi appellée
@@ -25,6 +28,8 @@ class debug(object):
 		self.func = func
 		self.signature = None
 		self.res = None
+		#self.ws = websockets.connect('ws://localhost:6171/')
+		self.ws = websocket.create_connection("ws://localhost:6171/")
 
 	def __call__(self, *args, **kwargs): ##Defining a custom __call__() method in the meta-class allows the class's instance to be called as a function, not always modifying the instance itself.
 		def tracer(frame, event, arg):
@@ -45,11 +50,19 @@ class debug(object):
 		# trace the function call
 			with HiddenPrints():         
 				self.res = self.func(*args, **kwargs)
-			self.clean_printing() 
+			#self.clean_printing()
+			#self.ws.send("Hello, World")
+			msg_rcv = self.ws.recv()
+			print(msg_rcv)
+			msg = "coucou from here"
+			self.ws.send(msg.encode())
+
 		finally:
 		# disable tracer and replace with old one
 			sys.setprofile(None)
 		return self.res
+	def __exit__(self, exc_type, exc_value, traceback):
+	 	print("heeeey")
 
 	def clear_locals(self):
 		self._locals = {}
