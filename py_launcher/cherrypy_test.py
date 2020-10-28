@@ -4,6 +4,8 @@ import string
 
 import cherrypy
 from pathlib import Path
+import tkinter
+from tkinter import filedialog
 
 class StringGenerator(object):
     @cherrypy.expose
@@ -32,9 +34,32 @@ class StringGeneratorWebService(object):
         cherrypy.session.pop('mystring', None)
     def GETDATA(self):
         print("zoulou")
-        #print(filename)
-        # absolute_path = Path(pathname_json_file).absolute()
-        # print(absolute_path)
+        root = tkinter.Tk()
+        #root.withdraw()
+
+        # Make it almost invisible - no decorations, 0 size, top left corner.
+        root.overrideredirect(True)
+        root.geometry('0x0+0+0')
+
+        # Show window again and lift it to top so it can get focus,
+        # otherwise dialogs will end up behind the terminal.
+        #root.deiconify()
+        #root.lift()
+        #root.focus_force()
+        #root.update()
+
+        # get the file path of the trades to load.
+        pathname_json_file = filedialog.askopenfilename(parent=root,initialdir = "/Documents/projet_perso", 
+                                          title = "Select a File", 
+                                          filetypes = [("Json files", 
+                                                        ".json"), 
+                                                       ("all files", 
+                                                        ".*")])
+
+        # Get rid of the top-level instance once to make it actually invisible.
+        root.destroy()
+        print("coucouSDD")
+        print(pathname_json_file)
 
 
 

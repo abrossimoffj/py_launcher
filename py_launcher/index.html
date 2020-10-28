@@ -18,21 +18,16 @@
         });
 
 
-        $("#custom-file-upload").on("change",function(e) {
+        $("#button-test").click(function(e) {
           $.ajax({
             type: "getData",
             url: "/generator"
-/*            data : {"filename" : "tartiflette" }*/
           })
           .done(function() {
           });
           e.preventDefault();
         });
 
-
-/*          $("#custom-file-upload").on("change",function(e) {
-               $('#get-data').trigger('click');
-        });*/
 
 
         $("#replace-string").click(function(e) {
@@ -58,37 +53,11 @@
           e.preventDefault();
         });
 
-/*        $("#custom-file-upload").click(function( e ) {
-          $.ajax({
-            type: "getData",
-            url: "/generator"
-            data : {"pathname_json_file" : $('#value').text( e.target.value )}
-          })
-          .done(function() {
-            alert("çabug");
-          });
-          e.preventDefault();
-        });*/
-
-/*      $('#custom-file-upload').on('change', function( e ) {
-
-        $('#value').text( e.target.value );
-        var filePath = $(this).val();
-        console.log(filePath);
-      });*/
-
       });
     </script>
   </head>
   <body>
     <input type="text" value="8" name="length"/>
-
-    <label class="custom-file-upload">
-    <input id ="custom-file-upload" type="file" accept=".json" />
-    Open
-    </label>
-    <div id="value"></div>
-
     <button id="button-test">hmmmm2!</button>
     <button id="generate-string">Give it now!</button>
     <div id="the-string">
