@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link href="/static/css/style.css" rel="stylesheet">
+    <script src="http://code.jquery.com/jquery-2.0.3.min.js"></script>
+
+<!--     <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"</script> -->
+    <script type="text/javascript">
+      $(document).ready(function() {
+
+        $("#generate-string").click(function(e) {
+          $.post("/generator", {"length": $("input[name='length']").val()})
+           .done(function(string) {
+            $("#the-string").show();
+            $("#the-string input").val(string);
+          });
+          e.preventDefault();
+        });
+
+
+        $("#custom-file-upload").on("change",function(e) {
+          $.ajax({
+            type: "getData",
+            url: "/generator"
+/*            data : {"filename" : "tartiflette" }*/
+          })
+          .done(function() {
+          });
+          e.preventDefault();
+        });
+
+
+/*          $("#custom-file-upload").on("change",function(e) {
+               $('#get-data').trigger('click');
+        });*/
+
+
+        $("#replace-string").click(function(e) {
+          $.ajax({
+            type: "PUT",
+            url: "/generator",
+            data: {"another_string": $("#the-string input").val()}
+          })
+          .done(function() {
+            alert("Replaced!");
+          });
+          e.preventDefault();
+        });
+
+        $("#delete-string").click(function(e) {
+          $.ajax({
+            type: "DELETE",
+            url: "/generator"
+          })
+          .done(function() {
+            $("#the-string").hide();
+          });
+          e.preventDefault();
+        });
+
+/*        $("#custom-file-upload").click(function( e ) {
+          $.ajax({
+            type: "getData",
+            url: "/generator"
+            data : {"pathname_json_file" : $('#value').text( e.target.value )}
+          })
+          .done(function() {
+            alert("çabug");
+          });
+          e.preventDefault();
+        });*/
+
+/*      $('#custom-file-upload').on('change', function( e ) {
+
+        $('#value').text( e.target.value );
+        var filePath = $(this).val();
+        console.log(filePath);
+      });*/
+
+      });
+    </script>
+  </head>
+  <body>
+    <input type="text" value="8" name="length"/>
+
+    <label class="custom-file-upload">
+    <input id ="custom-file-upload" type="file" accept=".json" />
+    Open
+    </label>
+    <div id="value"></div>
+
+    <button id="button-test">hmmmm2!</button>
+    <button id="generate-string">Give it now!</button>
+    <div id="the-string">
+      <input type="text" />
+      <button id="replace-string">Replace</button>
+      <button id="delete-string">Delete it</button>
+    </div>
+  </body>
+</html>
