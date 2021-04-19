@@ -74,9 +74,12 @@ class WsServer(object):
     while self.running.is_set():
       if not websocket.open:
         break
-      await websocket.send(self.msg.encode('UTF-8'))
+      # who_call_me = await websocket.recv()
+      # print("who_call_me",who_call_me)
+      # await websocket.send(self.msg.encode('UTF-8'))
       resp = await websocket.recv()
-      print(resp)
+      resp = json.loads(resp)
+      print("heya",resp)
 
   # async def close(self):
   #   self.serve.ws_server.close()
@@ -142,10 +145,6 @@ def donothing():
   filewin.title("test")
   button = Button(filewin, text="do nothing")
   button.pack()
-
-def test_envoie(frame,msg):
-  idx=get_index(info_array,frame)
-  info_array[idx]["ws_server"].msg = "hellooo from server"
 
 
 def formulaire_window_callback(frame,window,first_call):
@@ -225,41 +224,29 @@ def callback_update_current_val(frame,list_label,list_champ):
     current_dict[name] = val
   info_array[idx]["file_params"].update(current_dict)
 
+
 def run_callback(frame):
   ##Callback qui lance le fichier python avec un pipe en écoute pour récuperer stdout
   ##Le trick ici est de devoir threader ce processus d'écoute pour éviter de bloquer le code (cf la classe NonBlockingStreamReader )
-	idx=get_index(info_array,frame)
-	args_list = convert_dict_to_args(info_array[idx]["file_params"])
-
-
-	proc = subprocess.Popen(['python', info_array[idx]["pathname"],*args_list],
-	                  shell=False,
-	                  stdin=subprocess.PIPE,
-	                 stdout=subprocess.PIPE,
-	                 start_new_session = True # pour lancer un processus fils detaché de son parent : ici interface.py
-	                 )
-	info_array[idx]["pid"] = proc.pid
-  #print(proc.pid)
-	thread_read_stream = NonBlockingStreamReader(proc.stdout)
-
-def run_debug_callback(frame):
-	idx=get_index(info_array,frame)
-	args_list = convert_dict_to_args(info_array[idx]["file_params"])
-	list_functions = find_function_names_with_decorator(info_array[idx]["pathname"],"debug")
-	list_args,list_variables,list_returns = find_variable_names_of_decorated_functions(info_array[idx]["pathname"],list_functions[1])
-	print(list_functions,list_args,list_variables,list_returns)
-	ws = WsServer()
-	ws.run_in_background()
-	proc = subprocess.Popen(['python', info_array[idx]["pathname"],*args_list],
+  idx=get_index(info_array,frame)
+  args_list = convert_dict_to_args(info_array[idx]["file_params"])
+  list_functions = find_function_names_with_decorator(info_array[idx]["pathname"],"debug")
+  if list_functions : # permet de lancer le serveur uniquement si au moins un décorateur @debug est trouvé 
+    print(list_functions)
+    #list_args,list_variables,list_returns = find_variable_names_of_decorated_functions(info_array[idx]["pathname"],list_functions[1])
+    #print(list_functions,list_args,list_variables,list_returns)
+    ws = WsServer()
+    ws.run_in_background()
+    info_array[idx]["ws_server"] = ws
+  proc = subprocess.Popen(['python', info_array[idx]["pathname"],*args_list],
                       shell=False,
                       stdin=subprocess.PIPE,
                      stdout=subprocess.PIPE,
                      start_new_session = True # pour lancer un processus fils detaché de son parent : ici interface.py
                      )
-	info_array[idx]["pid"] = proc.pid
-	info_array[idx]["ws_server"] = ws 
+  info_array[idx]["pid"] = proc.pid 
   	#print(proc.pid)
-	thread_read_stream = NonBlockingStreamReader(proc.stdout)
+  thread_read_stream = NonBlockingStreamReader(proc.stdout)
 
 
 def find_variable_names_of_decorated_functions(file_pathname,function_name):
@@ -355,17 +342,12 @@ def open_and_create_from_json(pathname_json_file):
                      command= lambda : run_callback(frame))
     run_button.pack(side=LEFT)
 
-    run_debug_button = Button(frame, 
-                     text="Run_debug", 
-                     fg="red",
-                     command= lambda : run_debug_callback(frame))
-    run_debug_button.pack(side=LEFT)
+    # run_debug_button = Button(frame, 
+    #                  text="Run_debug", 
+    #                  fg="red",
+    #                  command= lambda : run_debug_callback(frame))
+    # run_debug_button.pack(side=LEFT)
 
-    test_envoie_button = Button(frame, 
-                     text="test_envoie", 
-                     fg="red",
-                     command= lambda : test_envoie(frame,"jtenvoi ça"))
-    test_envoie_button.pack(side=LEFT)
 
 
     label_name= Label(frame,text = filename,width = 50, height = 4, fg = "blue") 
