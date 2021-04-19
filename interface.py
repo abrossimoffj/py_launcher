@@ -15,6 +15,7 @@ import ast, inspect
 import socket
 import asyncio
 import websockets
+import time
 #Besoin de gerer la communication entre les programmes
 #Besoin de terminer les processus correctement pour eviter le process zombie en cas de terminaison normale
 
@@ -35,7 +36,8 @@ class NonBlockingStreamReader:
                 if line:
                     queue.put(line)
                 else:
-                    raise UnexpectedEndOfStream
+                    #raise UnexpectedEndOfStream
+                    break
                 output = self.readline(0.1)
                 if not output:
                   print ('[No more data]')
@@ -77,18 +79,21 @@ class WsServer(object):
       # who_call_me = await websocket.recv()
       # print("who_call_me",who_call_me)
       # await websocket.send(self.msg.encode('UTF-8'))
-      resp = await websocket.recv()
-      resp = json.loads(resp)
-      print("heya",resp)
+      try:
+        resp = await websocket.recv()
+        resp = json.loads(resp)
+        print("heya",resp)
+      except:
+        await self.close()
 
-  # async def close(self):
-  #   self.serve.ws_server.close()
-  #   await self.serve.ws_server.wait_closed()
-  #   self.loop.stop()
-  #   while(self.loop.is_running()):
-  #       time.sleep(0.5)
-  #   self.loop.close()
-  #   self.loop=None
+  async def close(self):
+    self.serve.ws_server.close()
+    await self.serve.ws_server.wait_closed()
+    self.loop.stop()
+    while(self.loop.is_running()):
+        time.sleep(0.5)
+    self.loop.close()
+    self.loop=None
 
 
   def run_forever(self):
@@ -173,12 +178,10 @@ def formulaire_window_callback(frame,window,first_call):
     row_counter += 1
   update_button = Button(filewin, text="Update",command=lambda: callback_update_current_val(frame,list_label,list_champ))
   update_button.grid (column=1, row=row_counter+1,sticky='sw', pady=20)
-  save_button = Button(filewin, text="Save",command=lambda: callback_update_json_file(frame))
-  save_button.grid (column=2, row=row_counter+1,sticky='sw',pady=20)
-  edit_button = Button(filewin, text="Edit",command=lambda:  open_file_callback(frame,"json_pathname"))
-  edit_button.grid (column=3, row=row_counter+1,sticky='sw',pady=20)
+  edit_button = Button(filewin, text="Edit file",command=lambda:  open_file_callback(frame,"json_pathname"))
+  edit_button.grid (column=2, row=row_counter+1,sticky='sw',pady=20)
   reload_button = Button(filewin, text="Reload",command=lambda:  formulaire_window_callback(frame,filewin,first_call=False))
-  reload_button.grid (column=4, row=row_counter+1,sticky='sw',pady=20)
+  reload_button.grid (column=3, row=row_counter+1,sticky='sw',pady=20)
 
 
 def delete_frame_callback(frame):
@@ -223,6 +226,7 @@ def callback_update_current_val(frame,list_label,list_champ):
     val = list_champ[i].get()
     current_dict[name] = val
   info_array[idx]["file_params"].update(current_dict)
+  callback_update_json_file(frame)
 
 
 def run_callback(frame):
