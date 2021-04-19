@@ -5,7 +5,6 @@ import sys
 import functools
 import os
 import json
-#import inspect
 import asyncio
 #import websockets
 import websocket
@@ -28,7 +27,6 @@ class debug(object):
 		self.func = func
 		self.signature = None
 		self.res = None
-		#self.ws = websockets.connect('ws://localhost:6171/')
 		self.ws = websocket.create_connection("ws://localhost:6171/")
 
 	def __call__(self, *args, **kwargs): ##Defining a custom __call__() method in the meta-class allows the class's instance to be called as a function, not always modifying the instance itself.
@@ -36,10 +34,6 @@ class debug(object):
 			if event=='return':
 				if frame.f_code.co_name == self.__name__ : ## For avoiding to get local variables of other frames in stack 
 					self._locals = frame.f_locals.copy()
-					# print("------------------------------")
-					# print(event,frame.f_code.co_name, frame.f_lineno)
-					# print(frame.f_locals)
-					# print("------------------------------")
 
         # tracer is activated on next call, return or exception, here we activate it on return signal
 		args_repr = [repr(a) for a in args]                      
@@ -50,11 +44,7 @@ class debug(object):
 		# trace the function call
 			with HiddenPrints():         
 				self.res = self.func(*args, **kwargs)
-			#self.clean_printing()
-			#self.ws.send("Hello, World")
-			msg_rcv = self.ws.recv()
-			print(msg_rcv)
-			msg = "coucou from here"
+			msg = self.convert_to_serialized_string()
 			self.ws.send(msg.encode())
 
 		finally:
@@ -64,26 +54,17 @@ class debug(object):
 	def __exit__(self, exc_type, exc_value, traceback):
 	 	print("heeeey")
 
-	def clear_locals(self):
-		self._locals = {}
+	def convert_to_serialized_string(self):
+		list_to_send = [self.__name__,self.signature,self._locals,self.res]
+		data_string = json.dumps(list_to_send) #data serialized
+		return data_string
 
-	@property
-	def locals(self):
-		return self._locals
-
-	@property
-	def get_signature(self):
-		return self.signature
-	@property
-	def get_output(self):
-		return self.res
-
-	def clean_printing(self):
-		print("-----------------------------------------")
-		print(f"Calling {self.__name__}({self.signature})")
-		print(self._locals)
-		#print("Intern variables ",json.dumps(self._locals))
-		print(f"{self.__name__!r} returned {self.res!r}")
-		print("-----------------------------------------")
+	# def clean_printing(self):
+	# 	print("-----------------------------------------")
+	# 	print(f"Calling {self.__name__}({self.signature})")
+	# 	print(self._locals)
+	# 	#print("Intern variables ",json.dumps(self._locals))
+	# 	print(f"{self.__name__!r} returned {self.res!r}")
+	# 	print("-----------------------------------------")
 
 
