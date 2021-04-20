@@ -7,20 +7,30 @@ import subprocess
 from threading  import Thread, Event
 from queue import Queue, Empty
 import json
-#from os import O_NONBLOCK, read
-#from fcntl import fcntl, F_GETFL, F_SETFL
-#from time import sleep
 import sys
 import ast, inspect
 import socket
 import asyncio
 import websockets
 import time
-#Besoin de gerer la communication entre les programmes
-#Besoin de terminer les processus correctement pour eviter le process zombie en cas de terminaison normale
+#Besoin de set la path de python pour se situer au niveau des scripts executé et non au path d'interface.py
 
 info_array = []
 
+
+class Retrieve_data_struct:
+  # def __init(self):
+  #   self.__name__ = None
+  #   self.signature = None
+  #   self.locals = None
+  #   self.output = None 
+  def update(self,resp):
+    self.__name__ = resp[0]
+    self.signature = resp[1]
+    self.locals = resp[2]
+    self.output = resp[3]
+
+debug_data = Retrieve_data_struct()
 class NonBlockingStreamReader:
 
     def __init__(self, stream):
@@ -65,9 +75,7 @@ class WsServer(object):
     self.running = Event()
     self.serve = None
     self.loop = None
-    self.msg = "init"
-    #self.stop_event = Event()
-    #self.stop = asyncio.get_event_loop().run_in_executor(None, self.stop_event.wait)
+    #self.msg = "init"
 
   async def sync(self, websocket, path):
     """Sync loop that exchange modules state with the client."""
@@ -76,13 +84,11 @@ class WsServer(object):
     while self.running.is_set():
       if not websocket.open:
         break
-      # who_call_me = await websocket.recv()
-      # print("who_call_me",who_call_me)
-      # await websocket.send(self.msg.encode('UTF-8'))
       try:
         resp = await websocket.recv()
         resp = json.loads(resp)
-        print("heya",resp)
+        debug_data.update(resp)
+        clean_printing()
       except:
         await self.close()
 
@@ -100,9 +106,6 @@ class WsServer(object):
     """Run the sync loop forever."""
     self.loop = asyncio.new_event_loop()
     asyncio.set_event_loop(self.loop)
-    # async def echo_server(stop):
-    #   async with websockets.serve(self.sync, self.host, self.port):
-    #     await self.stop
     self.serve = websockets.serve(self.sync, self.host, self.port)
 
     #loop.run_until_complete(echo_server(stop))
@@ -236,9 +239,8 @@ def run_callback(frame):
   args_list = convert_dict_to_args(info_array[idx]["file_params"])
   list_functions = find_function_names_with_decorator(info_array[idx]["pathname"],"debug")
   if list_functions : # permet de lancer le serveur uniquement si au moins un décorateur @debug est trouvé 
-    print(list_functions)
+    #print(list_functions)
     #list_args,list_variables,list_returns = find_variable_names_of_decorated_functions(info_array[idx]["pathname"],list_functions[1])
-    #print(list_functions,list_args,list_variables,list_returns)
     ws = WsServer()
     ws.run_in_background()
     info_array[idx]["ws_server"] = ws
@@ -253,32 +255,32 @@ def run_callback(frame):
   thread_read_stream = NonBlockingStreamReader(proc.stdout)
 
 
-def find_variable_names_of_decorated_functions(file_pathname,function_name):
-	#permet de trouver les variables des fonctions qui possèdent un decorateur specifique (@debug dans le cas du debugger)
-	file = open(file_pathname).read()
+# def find_variable_names_of_decorated_functions(file_pathname,function_name):
+# 	#permet de trouver les variables des fonctions qui possèdent un decorateur specifique (@debug dans le cas du debugger)
+# 	file = open(file_pathname).read()
 
-	list_variables = []
-	list_args = []
-	list_returns = []
-	root = ast.parse(file)
+# 	list_variables = []
+# 	list_args = []
+# 	list_returns = []
+# 	root = ast.parse(file)
 
-	for node in ast.walk(root):
-		if isinstance(node, ast.FunctionDef):
-			if node.name == function_name:
-				for inner_node in ast.walk(node):
-					if isinstance(inner_node, ast.Name) and isinstance(inner_node.ctx, ast.Store):
-						list_variables.append(inner_node.id)
-				##arguments
-				#print([a.arg for a in node.args.args])
-				for a in node.args.args:
-					list_args.append(a.arg)
-				##returns 
-				for b in node.body:
-					if isinstance(b, ast.Return):
-							if isinstance(b.value, ast.Name):
-								#print(b.value.id)
-								list_returns.append(b.value.id)
-	return list_args,list_variables,list_returns
+# 	for node in ast.walk(root):
+# 		if isinstance(node, ast.FunctionDef):
+# 			if node.name == function_name:
+# 				for inner_node in ast.walk(node):
+# 					if isinstance(inner_node, ast.Name) and isinstance(inner_node.ctx, ast.Store):
+# 						list_variables.append(inner_node.id)
+# 				##arguments
+# 				#print([a.arg for a in node.args.args])
+# 				for a in node.args.args:
+# 					list_args.append(a.arg)
+# 				##returns 
+# 				for b in node.body:
+# 					if isinstance(b, ast.Return):
+# 							if isinstance(b.value, ast.Name):
+# 								#print(b.value.id)
+# 								list_returns.append(b.value.id)
+# 	return list_args,list_variables,list_returns
 
 def find_function_names_with_decorator(file_pathname,decorator):
 	#permet de trouver les noms des fonctions qui possèdent un decorateur specifique (@debug dans le cas du debugger)
@@ -297,11 +299,11 @@ def find_function_names_with_decorator(file_pathname,decorator):
 	V.visit(target)
 	return list_names
 
-def clean_printing(func):
+def clean_printing():
 	print("-----------------------------------------")
-	print(f"Calling {func.__name__}({func.get_signature})")
-	print(f"Intern variables {func.locals!r}")
-	print(f"{func.__name__!r} returned {func.get_output!r}")
+	print(f"Calling {debug_data.__name__}({debug_data.signature})")
+	print(f"Intern variables {debug_data.locals!r}")
+	print(f"{debug_data.__name__!r} returned {debug_data.output!r}")
 	print("-----------------------------------------")
 
 def get_name_from_path(path):
@@ -345,13 +347,6 @@ def open_and_create_from_json(pathname_json_file):
                      fg="red",
                      command= lambda : run_callback(frame))
     run_button.pack(side=LEFT)
-
-    # run_debug_button = Button(frame, 
-    #                  text="Run_debug", 
-    #                  fg="red",
-    #                  command= lambda : run_debug_callback(frame))
-    # run_debug_button.pack(side=LEFT)
-
 
 
     label_name= Label(frame,text = filename,width = 50, height = 4, fg = "blue") 
