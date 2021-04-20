@@ -1,5 +1,6 @@
 from tkinter import * 
 from tkinter import filedialog 
+from tkinter import ttk
 from pathlib import Path
 import os
 import psutil
@@ -19,11 +20,11 @@ info_array = []
 
 
 class Retrieve_data_struct:
-  # def __init(self):
-  #   self.__name__ = None
-  #   self.signature = None
-  #   self.locals = None
-  #   self.output = None 
+  def __init__(self):
+    self.__name__ = None
+    self.signature = None
+    self.locals = None
+    self.output = None
   def update(self,resp):
     self.__name__ = resp[0]
     self.signature = resp[1]
@@ -177,7 +178,7 @@ def formulaire_window_callback(frame,window,first_call):
     list_label.append(Label(filewin, text=key))
     list_label[-1].grid(column=0, row=row_counter, sticky='w') ## on prend le dernier element ajouté et on gère les row de façon automatique
     list_champ.append(Entry(filewin, textvariable=StringVar(filewin, value=val)))
-    list_champ[-1].grid(column=1, row=row_counter, sticky='sw', columnspan=2, padx=10)
+    list_champ[-1].grid(column=1, row=row_counter, sticky='sw',  padx=10)
     row_counter += 1
   update_button = Button(filewin, text="Update",command=lambda: callback_update_current_val(frame,list_label,list_champ))
   update_button.grid (column=1, row=row_counter+1,sticky='sw', pady=20)
@@ -241,6 +242,7 @@ def run_callback(frame):
   if list_functions : # permet de lancer le serveur uniquement si au moins un décorateur @debug est trouvé 
     #print(list_functions)
     #list_args,list_variables,list_returns = find_variable_names_of_decorated_functions(info_array[idx]["pathname"],list_functions[1])
+    debug_variable_window = init_debug_variable_window(idx,list_functions)
     ws = WsServer()
     ws.run_in_background()
     info_array[idx]["ws_server"] = ws
@@ -255,32 +257,116 @@ def run_callback(frame):
   thread_read_stream = NonBlockingStreamReader(proc.stdout)
 
 
-# def find_variable_names_of_decorated_functions(file_pathname,function_name):
-# 	#permet de trouver les variables des fonctions qui possèdent un decorateur specifique (@debug dans le cas du debugger)
-# 	file = open(file_pathname).read()
+def init_debug_variable_window(idx,list_functions):
+  debug_variable_window = Toplevel(window)
+  debug_variable_window.geometry("700x700")
+  debug_variable_window.title("Debug variables of "+str(info_array[idx]["filename"]))
+  tabControl = ttk.Notebook(debug_variable_window)
+  list_tab = []
+  for i in range(len(list_functions)):
+    tab = ttk.Frame(tabControl)
+    list_tab.append(tab)
+    tabControl.add(tab, text =list_functions[i])
+    list_args,list_variables,list_returns = find_variable_names_of_decorated_functions(info_array[idx]["pathname"],list_functions[i])
+    row_counter = 1
+    for i in range(len(list_args)):
+        arg_checkbutton = Checkbutton(tab, onvalue=1, offvalue=0)
+        arg_checkbutton.grid(column=0, row=row_counter, sticky='w')
+        arg_name = Label(tab,text = list_args[i], fg = "blue",wraplength=250)
+        arg_name.grid(column=1, row=row_counter, sticky='w',  padx=10)
+        arg_type = Label(tab,text = None, fg = "blue",wraplength=250)
+        arg_type.grid(column=2, row=row_counter, sticky='w',  padx=10)
+        arg_value = Label(tab,text = None, fg = "blue",wraplength=250)
+        arg_value.grid(column=3, row=row_counter, sticky='w',  padx=10)
+        row_counter += 1
+    for i in range(len(list_variables)):
+        var_checkbutton = Checkbutton(tab, onvalue=1, offvalue=0)
+        var_checkbutton.grid(column=0, row=row_counter, sticky='w')
+        var_name = Label(tab,text = list_variables[i], fg = "blue",wraplength=250)
+        var_name.grid(column=1, row=row_counter, sticky='w',  padx=10)
+        var_type = Label(tab,text = None,fg = "blue",wraplength=250)
+        var_type.grid(column=2, row=row_counter, sticky='w',  padx=10)
+        var_value = Label(tab,text = None, fg = "blue",wraplength=250)
+        var_value.grid(column=3, row=row_counter, sticky='w',  padx=10)
+        row_counter += 1
 
-# 	list_variables = []
-# 	list_args = []
-# 	list_returns = []
-# 	root = ast.parse(file)
+    for i in range(len(list_returns)):
+        return_checkbutton = Checkbutton(tab, onvalue=1, offvalue=0)
+        return_checkbutton.grid(column=0, row=row_counter, sticky='w')
+        return_name = Label(tab,text = list_returns[i], fg = "blue",wraplength=250)
+        return_name.grid(column=1, row=row_counter, sticky='w',  padx=10)
+        return_type = Label(tab,text = None,fg = "blue",wraplength=250)
+        return_type.grid(column=2, row=row_counter, sticky='w',  padx=10)
+        return_value = Label(tab,text = None, fg = "blue",wraplength=250)
+        return_value.grid(column=3, row=row_counter, sticky='w',  padx=10)
+        row_counter += 1
+  tabControl.pack(expand = 1, fill ="both")
+  # list_label = []
+  # list_checkbox = []
+  # list_type = []
+  # list_value = []
+  # dict_buttons = {}
 
-# 	for node in ast.walk(root):
-# 		if isinstance(node, ast.FunctionDef):
-# 			if node.name == function_name:
-# 				for inner_node in ast.walk(node):
-# 					if isinstance(inner_node, ast.Name) and isinstance(inner_node.ctx, ast.Store):
-# 						list_variables.append(inner_node.id)
-# 				##arguments
-# 				#print([a.arg for a in node.args.args])
-# 				for a in node.args.args:
-# 					list_args.append(a.arg)
-# 				##returns 
-# 				for b in node.body:
-# 					if isinstance(b, ast.Return):
-# 							if isinstance(b.value, ast.Name):
-# 								#print(b.value.id)
-# 								list_returns.append(b.value.id)
-# 	return list_args,list_variables,list_returns
+    #   for i in range(len(list_args)):
+    #     arg_checkbutton = Checkbutton(tab, onvalue=1, offvalue=0)
+    #     arg_checkbutton.grid(column=0, row=row_counter, sticky='w')
+    #     arg_name = Label(tab,text = list_args[i], fg = "blue",wraplength=250)
+    #     arg_name.grid(column=1, row=row_counter, sticky='w',  padx=10)
+    #     arg_type = Label(tab,text = None, fg = "blue",wraplength=250)
+    #     arg_type.grid(column=2, row=row_counter, sticky='w',  padx=10)
+    #     arg_value = Label(tab,text = None, fg = "blue",wraplength=250)
+    #     arg_value.grid(column=3, row=row_counter, sticky='w',  padx=10)
+    #     row_counter += 1
+    # for i in range(len(list_variables)):
+    #     var_checkbutton = Checkbutton(tab, onvalue=1, offvalue=0)
+    #     var_checkbutton.grid(column=0, row=row_counter, sticky='w')
+    #     var_name = Label(tab,text = list_variables[i], fg = "blue",wraplength=250)
+    #     var_name.grid(column=1, row=row_counter, sticky='w',  padx=10)
+    #     var_type = Label(tab,text = None,fg = "blue",wraplength=250)
+    #     var_type.grid(column=2, row=row_counter, sticky='w',  padx=10)
+    #     var_value = Label(tab,text = None, fg = "blue",wraplength=250)
+    #     var_value.grid(column=3, row=row_counter, sticky='w',  padx=10)
+    #     row_counter += 1
+
+    # for i in range(len(list_returns)):
+    #     return_checkbutton = Checkbutton(tab, onvalue=1, offvalue=0)
+    #     return_checkbutton.grid(column=0, row=row_counter, sticky='w')
+    #     return_name = Label(tab,text = list_returns[i], fg = "blue",wraplength=250)
+    #     return_name.grid(column=1, row=row_counter, sticky='w',  padx=10)
+    #     return_type = Label(tab,text = None,fg = "blue",wraplength=250)
+    #     return_type.grid(column=2, row=row_counter, sticky='w',  padx=10)
+    #     return_value = Label(tab,text = None, fg = "blue",wraplength=250)
+    #     return_value.grid(column=3, row=row_counter, sticky='w',  padx=10)
+    #     row_counter += 1
+
+  return debug_variable_window
+
+def find_variable_names_of_decorated_functions(file_pathname,function_name):
+	#permet de trouver les variables des fonctions qui possèdent un decorateur specifique (@debug dans le cas du debugger)
+	file = open(file_pathname).read()
+
+	list_variables = []
+	list_args = []
+	list_returns = []
+	root = ast.parse(file)
+
+	for node in ast.walk(root):
+		if isinstance(node, ast.FunctionDef):
+			if node.name == function_name:
+				for inner_node in ast.walk(node):
+					if isinstance(inner_node, ast.Name) and isinstance(inner_node.ctx, ast.Store):
+						list_variables.append(inner_node.id)
+				##arguments
+				#print([a.arg for a in node.args.args])
+				for a in node.args.args:
+					list_args.append(a.arg)
+				##returns 
+				for b in node.body:
+					if isinstance(b, ast.Return):
+							if isinstance(b.value, ast.Name):
+								#print(b.value.id)
+								list_returns.append(b.value.id)
+	return list_args,list_variables,list_returns
 
 def find_function_names_with_decorator(file_pathname,decorator):
 	#permet de trouver les noms des fonctions qui possèdent un decorateur specifique (@debug dans le cas du debugger)
